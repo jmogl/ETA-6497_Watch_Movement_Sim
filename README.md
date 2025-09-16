@@ -24,6 +24,7 @@ Todo:
 - Working on a tilt mode for mobile devices to simulate a shadow box 3D effect
 - Finish gear animation: working up to the third wheel
 - Add option to explode parts
+- Hair spring is simulating a torsion spring using variable scaling. Needs a little more work, but close to the heart beat of the real thing from a distance.
 
  References and Notes
 - HDRI Texture: https://polyhaven.com/a/colorful_studio
