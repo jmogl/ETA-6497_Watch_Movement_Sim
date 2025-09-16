@@ -45,16 +45,16 @@ Fusion 360 / Blender Notes:
 	- Select Up Axis as -Z and Forward Axis as Y based on the orientation used in F360, may change for other models
  	- For high poly model:
   		- Tesslate high quality in Fusion 360.
-		  - Select "Create Quads" or texture UVs will not work properly in Blender
+		- Select "Create Quads" or texture UVs will not work properly in Blender
   		- Import .OBJ file into Blender, but select "Split By Group" before importing or the indivudal mesh names will not be imported.
-		  - In Blender, UVs will need to be created for all mesh bodies
+		- In Blender, UVs will need to be created for all mesh bodies
   		- Select the object mesh and right click. Pick "Shade Auto Smooth" so individual polygons will not be visible in JavaScript.
-		  - With the object selected, hit Tab or go into the Edit mode
+		- With the object selected, hit Tab or go into the Edit mode
   		- Select the mesh and hit L to ensure all of the faces are selected
-		  - Select "U" to bring up the UV menu and select "Smart UV Project"
+		- Select "U" to bring up the UV menu and select "Smart UV Project"
   		- Select the UV editor screen from the icon with the round ball over a grid in the upper left
 	  	- The texture map UV should be visible. Scale it up by about 10x to get fine (less rough detail) for importing textures into JavaScript 
-		  - Export .GLB, +Y transform out of Blender and save in three.js folder
+		- Export .GLB, +Y transform out of Blender and save in three.js folder
 
 - ETA 6497 Watch Movement Notes:
 - https://calibercorner.com/unitas-caliber-6497/
