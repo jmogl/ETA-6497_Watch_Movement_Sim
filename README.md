@@ -1,7 +1,7 @@
 # ETA-6497_Watch_Movement_Sim
 Simulation of ETA-6497 Watch Movement clock using three.js
 MIT License. - Work In Progress
-Jeff Miller 2025. 9/15/25
+Jeff Miller 2025. 9/21/25
 
 Goal of this program is to continue learning three.js and swiss watch movements!
 
@@ -90,7 +90,7 @@ Fusion 360 / Blender Notes:
 	- Hour Wheel rotates 1 revolution every 12 hours (720 min).
 	- Minute Wheel: Used to set the time with the crown and also drives the hour hand.
 		- Drive rate: cannon pinion rotates 1 rotaton per hour. Gear ratio driven minute wheel 36 teeth / driving gear pinon =3
-		- Rotation rate is 1 rev per hour / 3 = 1/3 revolution per hour  **** Need to check or fix
+		- Rotation rate is 1 rev per hour / 3 = 1/3 revolution per hour 
 	- Balance Wheel: 270 to 310 degrees, 2.5 Hz or 1 per 0.4 seconds back and forth.
 	- Power Flow: Mainspring Barrel (First Wheel) -> Center Wheel -> Third Wheel
 	- Time Delay (Locking Phase)
