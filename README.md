@@ -55,8 +55,15 @@ Fusion 360 / Blender Notes:
 		- Select "U" to bring up the UV menu and select "Smart UV Project"
   		- Select the UV editor screen from the icon with the round ball over a grid in the upper left
 	  	- The texture map UV should be visible. Scale it up by about 10x to get fine (less rough detail) for importing textures into JavaScript 
-		- Export .GLB, +Y transform out of Blender and save in three.js folder
-
+		- Export .GLB (.glTF 2.0) in Blender, I used the following options:
+  			- Under "Transform", Checked:
+     			- "+Y Up"
+     		- Under "Mesh", Checked:
+       			- "Apply Modifiers"
+          		- "UVs"
+            	- "Normals"
+             	- "Tangents"
+                
 - ETA 6497 Watch Movement Notes:
 - https://calibercorner.com/unitas-caliber-6497/
 - Movement is 36.6mm in diameter and 4.5mm thick
