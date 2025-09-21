@@ -1,6 +1,6 @@
 // 3D Javacript ETA 6497 Clock using three.js
 // MIT License. - Work In Progress
-// Jeff Miller 2025. 9/15/25
+// Jeff Miller 2025. 9/21/25
 
 /* References and Notes
 - AI Development Support & Debugging: Google Gemini
@@ -22,77 +22,10 @@
 /*
 To Do:
 - Finish textures
-- Finish gears animation
 - Add option to "explode parts"
 - Fix tilt mode for mobile devices - Partially working
 - Clean up skeleton top alignment and third wheel support
 */
-
-/*
-
-NOTES (Will eventually move this to the ReadMe file):
-
-- Fusion 360 to .OBJ to Blender to .GLB
-	- Note: Use "remove" instead of "delete" when removing F360 bodies and keep the history timeline.
-	- Select "Split By Group" when importing into Blender under import file dialog options to keep mesh body names
-	- Select Up Axis as -Z and Forward Axis as Y based on the orientation used in F360, may change for other models
- 	- For high poly model:
-  		- Tesslate high quality in Fusion 360.
-		- Select "Create Quads" or texture UVs will not work properly in Blender
-  		- Import .OBJ file into Blender, but select "Split By Group" before importing or the indivudal mesh names will not be imported.
-		- In Blender, UVs will need to be created for all mesh bodies
-  		- Select the object mesh and right click. Pick "Shade Auto Smooth" so individual polygons will not be visible in JavaScript.
-		- With the object selected, hit Tab or go into the Edit mode
-  		- Select the mesh and hit L to ensure all of the faces are selected
-		- Select "U" to bring up the UV menu and select "Smart UV Project"
-  		- Select the UV editor screen from the icon with the round ball over a grid in the upper left
-		- The texture map UV should be visible. Scale it up by about 10x to get fine (less rough detail) for importing textures into JavaScript 
-		- Export .GLB, +Y transform out of Blender and save in three.js folder
-
-- ETA 6497 Watch Movement Notes:
-- https://calibercorner.com/unitas-caliber-6497/
-- Movement is 36.6mm in diameter and 4.5mm thick
-- 18,000 vibrations per hour (VPH) (balance wheel swing)
-	- 3600 seconds/hour
-	- One tick sound for ballance wheel full swing
-	- Tick per second = 18,000 VPH / 3600 sec/hr = 5 ticks per second
-- Drive Train
-	- Center Wheel: Carries Minute hand and rotates once per hour
-		- Driven by the Main Spring Barrel. Cannon Pinon Arbor has gear teeth that is press fit into the center wheel's arbor. 
-		  The arbor friction acts as a clutch. When the crown is moved to set the time, the minute wheel is turned. The
-		  force applied is enough to overcome friction allowing the pinion to slip and rotate independently on the Center
-		  wheel arbor. This allows the hands to move without breaking or backwinding the entire drive train!
-	
-	- To Do: Add Cannon Pinion Back! (Start over with original model now using .glb!)
-	- DriverCannonPinion_Gear_Body for rotation.
-	- Small Center Wheel gear rotates with Center Gear. Separated for material color.
-	- SecondWheelSmallGear rotates with the second wheel. Silver instead of brass.
-	- ThirdWheelBottomGear & ThirdWheelTopGear silver moves with ThirdWheel
-	- Third Wheel: Rotates every 7.5 minutes counterclockwise from dial side
-	- Fourth Wheel: Carries small seconds hand and rotates once per minute. Also drives the escapement
-	- Escape Wheel: Advances by half a tooth per beat (15 teeth), resulting in a full rotation every 5 seconds counter clockwise.
-	- Crown Wheel: Used to wind the main spring. Turns with the crown.
-	- Hour Wheel rotates 1 revolution every 12 hours (720 min).
-	- Minute Wheel: Used to set the time with the crown and also drives the hour hand.
-		- Drive rate: cannon pinion rotates 1 rotaton per hour. Gear ratio driven minute wheel 36 teeth / driving gear pinon =3
-		- Rotation rate is 1 rev per hour / 3 = 1/3 revolution per hour  **** Need to check or fix
-	- Balance Wheel: 270 to 310 degrees, 2.5 Hz or 1 per 0.4 seconds back and forth.
-	- Power Flow: Mainspring Barrel (First Wheel) -> Center Wheel -> Third Wheel
-	- Time Delay (Locking Phase)
-		- Escape wheel is stationary when the pallet fork is at its maximum displacement, which is at:
-			- At +1.5 to +2 degrees, one of the pallet jewels (for instance, the entry pallet) is holding 
-			an escape wheel tooth, and the fork is resting against one banking pin.
-			- At -1.5 to -2 degrees, the other pallet jewel (the exit pallet) is holding the next escape wheel tooth, 
-			- and the fork is resting against the opposite banking pin.
-		- 1. Start of Cycle (0.0 Seconds): Balance wheel is at its fastest, passing through the center.
-			It kicks the pallet fork, unlocking the escape wheel. The escape wheel moves one tooth (impulse), which
-			happens almost instantly. The first 0.2 second pause begins. 
-		- 2. Mid Cycle (0.2 Seconds): Balance wheel reaches end of its swing and starts back the other way. It passes
-			through the center again, kicks the pallet fork, and unlocks the escape wheel again. The escape wheel moves	
-			another tooth. This ends the first pause and immediately begins the second 0.2 second pause.
-		- 3. End of cycle (0.4 Seconds): Balance wheel reaces the end of its second swing and starts back.
-*/
-
 
 // Load Dependencies
 import * as THREE from 'three';
@@ -125,6 +58,7 @@ let _shadowCameraSettings = {};
 // --- Camera Zoom Variables ---
 let maxZoomInDistance = 30; // Default min distance
 let maxZoomOutDistance = 90; // Default max distance
+let shadowBoxOuterHeight = 0; // Will be calculated in layoutScene
 
 const modelFiles = {
     'High Quality': 'ETA6497-1.glb',
@@ -173,6 +107,16 @@ const settings = {
         cameraResetTargetPos.set(0, 0, targetZ);
     
         // 5. Start the animation.
+        isResettingCamera = true;
+    },
+    resetCameraToBox: () => {
+        if (isResettingCamera || shadowBoxOuterHeight === 0) return;
+
+        const fov = camera.fov * (Math.PI / 180); // vertical fov in radians
+        const distance = (shadowBoxOuterHeight / 2) / Math.tan(fov / 2);
+
+        cameraResetTargetPos.set(0, 0, distance);
+        cameraResetTargetTarget.set(0, 0, 0);
         isResettingCamera = true;
     },
     // --- This is now a wrapper to reset the beat rate AND the sim ---
@@ -263,10 +207,11 @@ function _resetSimulation() {
 // --- 3D Model Variables ---
 let clockModel; //
 let modelScale = 3.5; //
-let secondWheel, minuteWheel, hourWheel, balanceWheel, escapeWheel, centerWheel, thirdWheel, palletFork, hairSpring, secondWheelSmallGear, thirdWheelTopGear; //
+let secondWheel, minuteWheel, hourWheel, balanceWheel, escapeWheel, centerWheel, thirdWheel, palletFork, hairSpring, secondWheelSmallGear, barrelDrumGear, centerWheelSmallGear, cannonPinion; //
 let newHourHand, newMinuteHand, newSecondHand; //
 let collectedParts = {};  //
 let shadowBoxWalls; // This will hold the wall meshes for easy toggling
+let topWall, bottomWall, leftWall, rightWall; // Wall meshes declared here
 
 // --- Add global offsets for hands ---
 let initialSecondRotationOffset = 0;
@@ -282,6 +227,13 @@ let simulationTotalTicks = 0;
 let simulationBeatRate = 5.0; // This is the "live" rate the physics engine uses.
 // --- Add a dedicated, resettable clock for the physics simulation ---
 let simulationPhysicsTime = 0.0;
+
+// --- MOVED: Define mechanical constants for the gear train, based on a 5Hz reference beat rate ---
+const TICKS_PER_SECOND_REFERENCE = 5.0;
+const TICKS_PER_MINUTE = TICKS_PER_SECOND_REFERENCE * 60; // 300
+const TICKS_PER_HOUR = TICKS_PER_MINUTE * 60; // 18,000
+const TICKS_PER_12_HOURS = TICKS_PER_HOUR * 12; // 216,000
+
 // Set the starting direction of the pallet fork: 1 for CCW, -1 for CW.
 let palletForkState = -1; //
 // Synchronize the balance wheel's starting phase with the pallet fork's state.
@@ -475,7 +427,7 @@ window.addEventListener('DOMContentLoaded', () => { //
 
     gui.add(settings, 'bridgeTransparency', 0.0, 1.0, 0.01).name('Bottom Opacity').onChange(value => {
         // --- UPDATED: Use exact names for the meshes to modify ---
-        const bridgeParts = ['BarrelBridgeBody', 'TrainWheelBridge', 'BalancingBridge'];
+        const bridgeParts = ['105_BarrelBridge', '110_TrainWheelBridge', '121_BalancingBridge'];
         bridgeParts.forEach(partName => {
             const part = collectedParts[partName];
             if (part && part.material) {
@@ -486,7 +438,7 @@ window.addEventListener('DOMContentLoaded', () => { //
         });
     });
 
-    gui.add(settings, 'beatRate', 0.5, 5.0, 0.5).name('Beat Rate / Sec') 
+    gui.add(settings, 'beatRate', 0.5, 50.0, 0.5).name('Beat Rate / Sec') 
         .onChange(newBeatRate => {
             if (currentTickSource) {
                 const roundedRate = Math.round(newBeatRate * 2) / 2;
@@ -503,7 +455,8 @@ window.addEventListener('DOMContentLoaded', () => { //
     gui.add(settings, 'cameraZoom', 0.0, 2.0, 0.01).name('Camera Zoom').onChange(updateCameraZoom);
 
     gui.add(settings, 'resetClock').name('Reset Clock'); //
-    gui.add(settings, 'resetCamera').name('Reset Camera'); //
+    gui.add(settings, 'resetCamera').name('Reset Zoom Camera'); //
+    gui.add(settings, 'resetCameraToBox').name('Reset Camera to Shadow Box');
 
     // --- Performance Settings Sub-Menu ---
     const performanceFolder = gui.addFolder('Performance Settings');
@@ -846,10 +799,10 @@ boxGroup.add(clockUnit); // Add the clock itself to the main group
 shadowBoxWalls.add(wall); // Add the back wall to our new group
 
 // --- REWORKED: Create placeholder meshes; geometry is now built in layoutScene() ---
-const topWall = new THREE.Mesh(new THREE.BoxGeometry(), topBottomMaterial);
-const bottomWall = new THREE.Mesh(new THREE.BoxGeometry(), topBottomMaterial);
-const leftWall = new THREE.Mesh(new THREE.BoxGeometry(), leftRightMaterial);
-const rightWall = new THREE.Mesh(new THREE.BoxGeometry(), leftRightMaterial);
+topWall = new THREE.Mesh(new THREE.BoxGeometry(), topBottomMaterial);
+bottomWall = new THREE.Mesh(new THREE.BoxGeometry(), topBottomMaterial);
+leftWall = new THREE.Mesh(new THREE.BoxGeometry(), leftRightMaterial);
+rightWall = new THREE.Mesh(new THREE.BoxGeometry(), leftRightMaterial);
 
 [topWall, bottomWall, leftWall, rightWall].forEach(w => { //
     w.castShadow = true; //
@@ -928,15 +881,16 @@ function processLoadedModel(gltf) {
         else if (name === 'CaseBottomBody' || name === 'CaseTopBody') {
             part.material = mediumBrushedSteelMaterial;
         }
-        else if (['BarrelBridgeBody', 'TrainWheelBridge', 'BalancingBridge'].includes(name)) {
+        else if (['105_BarrelBridge', '110_TrainWheelBridge', '121_BalancingBridge'].includes(name)) {
             const material = lightBrushedSteelMaterial.clone();
             material.transparent = true;
             material.opacity = settings.bridgeTransparency;
             part.material = material;
         }
+
         else if ([
-            'BarrelDrum_Gear_Body', 'PalletBridgeBody', 'RollerTable',
-            'BalancingBridgeBody', 'TrainWheelBridgeBody'
+            '180_BarrelDrum_Gear', '125_PalletBridge', '730_DoubleRoller',
+            '121_BalancingBridge', '110_TrainWheelBridge'
         ].includes(name)) { 
             part.material = brushedSteelMaterial;
         }
@@ -950,33 +904,33 @@ function processLoadedModel(gltf) {
             part.material = material;
         }
         else if ([
-            'BarrelArborBody', 'BarrelMainSpringBody', 'ClickBody', 'CrownWheelBody',
-            'DriverCannonPinion_Gear_Body', 'Incabloc1_1', 'Incabloc1_Base',
-            'Incabloc2_2', 'IncablocDisc_2', 'PalletForkBody', 'RatchetWheelBody',
-            'RegulatorCurvePin_1', 'RegulatorCurvePin_2', 'RegulatorPiece1_Body', 'RegulatorPiece2_Body',
-            'RegulatorPiece3_Body', 'SettingLeverJumperBody', 'SettingLever_Body', 'SettingWheelBody',
-            'SlidingPinion', 'WindingPinion', 'WindingStem', 'YokeBody', 'YokeSpringCompressed_Body'
+            '180_BarrelArbor', '180_BarrelMainSpring', '425_Click', '420_CrownWheel',
+            '240_DriverCannonPinion_Gear', 'Incabloc1_1', 'Incabloc1_Base',
+            'Incabloc2_2', 'IncablocDisc_2', '710_PalletFork', '415_RatchetWheel',
+            '303_RegulatorCurvePin_1', '303_RegulatorCurvePin_2', '303_RegulatorPiece1', '303_RegulatorPiece2',
+            '303_RegulatorPiece3', '445_SettingLeverJumper', '443_SettingLever', '450_SettingWheel',
+            '407_SlidingPinion', '410_WindingPinion', '401_WindingStem', '435_Yoke', '440_YokeSpringCompressed'
         ].includes(name)) { 
             part.material = polishedAluminumMaterial;
         }
         else if (name.includes('Screw')) {
             part.material = polishedAluminumMaterial;
         }
-        else if (['SecondWheel', 'Minute_Wheel_Body', 'HourWheel_Body', 'EscapeWheelBody', 'CenterWheelBody', 'ThirdWheelBody', 'BalanceWheelBody', 'SecondWheelSmallGear', 'ThirdWheelTopGear', 'HairSpringBody'].includes(name) || name.includes('PipOuter')) { part.material = brassMaterial; }
+        else if (['220_SecondWheel', '260_MinuteWheel', '250_HourWheel', '705_EscapeWheel', '201_CenterWheel', '210_ThirdWheel', '721_BalanceWheel', '220_SecondWheelSmallGear', '210_ThirdWheelTopGear', '210_ThirdWheelBottomGear', '721_HairSpring'].includes(name) || name.includes('PipOuter')) { part.material = brassMaterial; }
     }
-    const palletBridgeMesh = collectedParts['PalletBridgeBody'];
+    const palletBridgeMesh = collectedParts['125_PalletBridge'];
     if (palletBridgeMesh) {
         const transparentMaterial = palletBridgeMesh.material.clone();
         transparentMaterial.transparent = true;
         transparentMaterial.opacity = 0.5;
         palletBridgeMesh.material = transparentMaterial;
     }
-    const partsToPivot = [ 'SecondWheel', 'Minute_Wheel_Body', 'HourWheel_Body', 'BalanceWheelBody', 'EscapeWheelBody', 'CenterWheelBody', 'ThirdWheelBody', 'HairSpringBody', 'SecondWheelSmallGear', 'ThirdWheelTopGear' ];
+    const partsToPivot = [ '220_SecondWheel', '260_MinuteWheel', '250_HourWheel', '721_BalanceWheel', '705_EscapeWheel', '201_CenterWheel', '210_ThirdWheel', '721_HairSpring', '220_SecondWheelSmallGear', '180_BarrelDrum_Gear', '201_CenterWheelSmallGear', '240_DriverCannonPinion_Gear' ];
     
     partsToPivot.forEach(name => {
         const part = collectedParts[name];
         if (part) {
-            if (name === 'HairSpringBody') {
+            if (name === '721_HairSpring') {
                 hairSpringMesh = part;
                 const positions = part.geometry.attributes.position.array;
                 const vertexCount = positions.length / 3;
@@ -1050,37 +1004,51 @@ function processLoadedModel(gltf) {
             pivot.add(part);
             part.position.sub(center);
             switch (name) {
-                case 'SecondWheel': secondWheel = pivot; break;
-                case 'Minute_Wheel_Body': minuteWheel = pivot; break;
-                case 'HourWheel_Body': hourWheel = pivot; break;
-                case 'BalanceWheelBody':
+                case '220_SecondWheel': secondWheel = pivot; break;
+                case '260_MinuteWheel': minuteWheel = pivot; break;
+                case '250_HourWheel': hourWheel = pivot; break;
+                case '721_BalanceWheel':
                     balanceWheel = pivot;
-                    const rollerJewelMesh = collectedParts['RollerJewel'];
+                    const rollerJewelMesh = collectedParts['730_RollerJewel'];
                     if (rollerJewelMesh) {
                         pivot.add(rollerJewelMesh);
                         rollerJewelMesh.position.sub(center);
                     }
                     break;
-                case 'EscapeWheelBody': escapeWheel = pivot; break;
-                case 'CenterWheelBody': centerWheel = pivot; break;
-                case 'ThirdWheelBody': thirdWheel = pivot; break;
-                case 'HairSpringBody': hairSpring = pivot; break;
-                case 'SecondWheelSmallGear': secondWheelSmallGear = pivot; break;
-                case 'ThirdWheelTopGear': thirdWheelTopGear = pivot; break;
+                case '705_EscapeWheel': escapeWheel = pivot; break;
+                case '201_CenterWheel': centerWheel = pivot; break;
+                case '210_ThirdWheel': 
+                    thirdWheel = pivot; 
+                    const topGear = collectedParts['210_ThirdWheelTopGear'];
+                    if (topGear) {
+                        pivot.add(topGear);
+                        topGear.position.sub(center);
+                    }
+                    const bottomGear = collectedParts['210_ThirdWheelBottomGear'];
+                    if (bottomGear) {
+                        pivot.add(bottomGear);
+                        bottomGear.position.sub(center);
+                    }
+                    break;
+                case '721_HairSpring': hairSpring = pivot; break;
+                case '220_SecondWheelSmallGear': secondWheelSmallGear = pivot; break;
+                case '180_BarrelDrum_Gear': barrelDrumGear = pivot; break;
+                case '201_CenterWheelSmallGear': centerWheelSmallGear = pivot; break;
+                case '240_DriverCannonPinion_Gear': cannonPinion = pivot; break;
             }
         }
     });
 
-    const palletForkBodyMesh = collectedParts['PalletForkBody'];
-    const palletJewelBodyMesh = collectedParts['Plate_Jewel_Body'];
+    const palletForkBodyMesh = collectedParts['710_PalletFork'];
+    const palletJewelBodyMesh = collectedParts['100_Plate_Jewel'];
     if (palletForkBodyMesh && palletJewelBodyMesh) {
         const jewelCenter = new THREE.Vector3();
         new THREE.Box3().setFromObject(palletJewelBodyMesh).getCenter(jewelCenter);
         const pivot = new THREE.Group();
         palletForkBodyMesh.parent.add(pivot);
         pivot.position.copy(jewelCenter);
-        if (collectedParts['PalletForkJewel1']) pivot.add(collectedParts['PalletForkJewel1']);
-        if (collectedParts['PalletForkJewel2']) pivot.add(collectedParts['PalletForkJewel2']);
+        if (collectedParts['710_PalletForkJewel1']) pivot.add(collectedParts['710_PalletForkJewel1']);
+        if (collectedParts['710_PalletForkJewel2']) pivot.add(collectedParts['710_PalletForkJewel2']);
         pivot.add(palletForkBodyMesh);
         pivot.children.forEach(child => child.position.sub(jewelCenter));
         palletFork = pivot;
@@ -1130,7 +1098,7 @@ function loadClockModel(quality) {
     // --- 2. RESET all state variables related to the model ---
     clockModel = null;
     collectedParts = {};
-    secondWheel = minuteWheel = hourWheel = balanceWheel = escapeWheel = centerWheel = thirdWheel = palletFork = hairSpring = secondWheelSmallGear = thirdWheelTopGear = null;
+    secondWheel = minuteWheel = hourWheel = balanceWheel = escapeWheel = centerWheel = thirdWheel = palletFork = hairSpring = secondWheelSmallGear = barrelDrumGear = centerWheelSmallGear = cannonPinion = null;
     newHourHand = newMinuteHand = newSecondHand = null;
 
     // --- 3. LOAD the new model ---
@@ -1147,12 +1115,6 @@ loadClockModel(settings.modelLOD);
 // --- RE-USABLE VECTORS FOR ANIMATION LOOP ---
 const p_orig = new THREE.Vector3(); //
 const displacementDirection = new THREE.Vector3(); //
-
-// --- Define mechanical constants for the gear train, based on a 5Hz reference beat rate ---
-const TICKS_PER_SECOND_REFERENCE = 5.0;
-const TICKS_PER_MINUTE = TICKS_PER_SECOND_REFERENCE * 60; // 300
-const TICKS_PER_HOUR = TICKS_PER_MINUTE * 60; // 18,000
-const TICKS_PER_12_HOURS = TICKS_PER_HOUR * 12; // 216,000
 
 // --- Function to update all gear rotations based on a discrete tick ---
 function updateClockGears() {
@@ -1180,14 +1142,18 @@ function updateClockGears() {
     if (secondWheel) secondWheel.rotation.z = secondHandRotation; 
     if (secondWheelSmallGear) secondWheelSmallGear.rotation.z = secondHandRotation; 
     
-    if (minuteWheel) minuteWheel.rotation.z = -minuteHandRotation; // CW
+    if (minuteWheel) minuteWheel.rotation.z = -minuteHandRotation / 3.0; // CW, 1 rotation per 3 hours
     if (centerWheel) centerWheel.rotation.z = minuteHandRotation; // CCW
+    if (centerWheelSmallGear) centerWheelSmallGear.rotation.z = minuteHandRotation; // CCW, in tandem with Center Wheel
+    if (cannonPinion) cannonPinion.rotation.z = -minuteHandRotation; // CW
     
+    // Barrel Drum rotates once every 8 hours (8 * 18000 = 144000 ticks)
+    if (barrelDrumGear) barrelDrumGear.rotation.z = ((totalTicks / (TICKS_PER_HOUR * 8)) * Math.PI * 2); // CW
+
     // Third wheel rotates once every 7.5 minutes (7.5 * 300 = 2250 ticks)
     if (thirdWheel) thirdWheel.rotation.z = ((totalTicks / (TICKS_PER_MINUTE * 7.5)) * Math.PI * 2); // CW
-    if (thirdWheelTopGear) thirdWheelTopGear.rotation.z = -((totalTicks / (TICKS_PER_MINUTE * 7.5)) * Math.PI * 2); // CCW
 
-    if (hourWheel) hourWheel.rotation.z = -hourHandRotation; // CW
+    if (hourWheel) hourWheel.rotation.z = hourHandRotation; // CCW, in tandem with the hour hand
 
 
     // --- Escape wheel logic is already correct as it's driven by totalTicks ---
@@ -1246,6 +1212,7 @@ function layoutScene() {
     const wallCenterZ = -boxDepth / 2;
     const outerWidth = innerWidth + (2 * wallThickness);
     const outerHeight = innerHeight + (2 * wallThickness);
+    shadowBoxOuterHeight = outerHeight; // Store for camera reset
 
     wall.scale.set(outerWidth, outerHeight, 1);
     wall.position.z = -boxDepth;
